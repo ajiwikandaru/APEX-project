@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project APEX — Kalkulator Dosis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js" crossorigin="anonymous"></script>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#263238;background:#f4f6f9;font-synthesis:none;text-rendering:optimizeLegibility}
+*{box-sizing:border-box}body{margin:0;padding:20px}.container{max-width:1250px;margin:0 auto;background:#fff;padding:24px;border-radius:12px;box-shadow:0 4px 16px #00000012}
+h1{font-size:clamp(20px,3vw,27px);color:#1b5e20;border-bottom:2px solid #c8e6c9;padding-bottom:12px;margin-top:0}
+h2{font-size:17px;margin:0 0 12px;color:#2e7d32}.card{background:#fafcf9;border:1px solid #dce5dc;border-radius:8px;padding:16px;margin:16px 0}.upload{background:#e8f5e9;border:2px dashed #4caf50;text-align:center}
+label{display:block;font-weight:650;font-size:14px;margin-bottom:6px}input,textarea{font:inherit;max-width:100%;padding:9px;border:1px solid #cbd5ce;border-radius:5px;background:#fff}input[type=number]{width:100%}input[type=file]{width:100%;margin:8px 0}textarea{width:100%;min-height:78px;resize:vertical}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:14px}.btn{border:0;border-radius:5px;padding:10px 14px;background:#2e7d32;color:white;font-weight:650;cursor:pointer;margin:3px}.btn:hover{filter:brightness(.93)}.btn:disabled{opacity:.5;cursor:not-allowed}.blue{background:#1565c0}.red{background:#c62828}.grey{background:#455a64}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}.metric{text-align:center;background:#f1f8e9;border:1px solid #c8e6c9;border-radius:8px;padding:15px}.metric span{display:block;color:#388e3c;font-size:12px;font-weight:750;text-transform:uppercase}.metric strong{display:block;color:#1b5e20;font-size:22px;margin-top:6px;overflow-wrap:anywhere}#status{font-weight:650;margin-top:12px;overflow-wrap:anywhere;line-height:1.5}#preview{display:none;max-width:100%;max-height:420px;object-fit:contain;margin-top:12px;border:1px solid #ccc;border-radius:5px;background:white}.muted{color:#5d6860;font-size:13px;line-height:1.55}.warn{color:#b71c1c}.good{color:#1b5e20}.actions{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0}details p{max-width:850px}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}th,td{border:1px solid #dce2dc;padding:8px;text-align:center}th{background:#2e7d32;color:#fff;position:sticky;top:0}tr:nth-child(even){background:#fafafa}.area{width:110px!important;text-align:center}.danger{background:#c62828;color:#fff;border:0;border-radius:4px;padding:6px 9px;cursor:pointer}#checkMessage{font-size:14px;font-weight:650;line-height:1.5;min-height:1.5em}.table-wrap{overflow-x:auto}.note{background:#fff8e1;border-left:4px solid #ffca28;border-radius:4px;padding:12px;font-size:13px;line-height:1.5}
+@media(max-width:600px){body{padding:8px}.container{padding:12px}th,td{padding:6px}.area{width:85px!important}.btn{padding:9px 10px}}
+</style>
+</head>
+<body>
+<main class="container">
+<h1 id="title">Project APEX: Kalkulator Dosis dari Peta Lokasi</h1>
+<section class="card upload" aria-labelledby="uploadTitle">
+<h2 id="uploadTitle">1. Upload peta lokasi</h2>
+<label for="uploader">Pilih peta PDF satu halaman, JPG, atau PNG</label>
+<input type="file" id="uploader" accept="application/pdf,.pdf,image/png,.png,image/jpeg,.jpg,.jpeg">
+<button class="btn" id="readMapBtn" type="button" disabled>Baca Peta dengan AI</button>
+<div id="status" role="status" aria-live="polite">Upload peta untuk menampilkan pratinjau. Pembacaan otomatis membutuhkan Anthropic API key; tanpa API key, Anda tetap bisa mengisi tabel atau mengimpor angka luas.</div>
+<img id="preview" alt="Pratinjau peta yang diunggah">
+</section>
+<details class="card">
+<summary><strong>Pengaturan API Claude (opsional)</strong></summary>
+<label for="apiKey" style="margin-top:12px">Anthropic API Key (untuk pembacaan peta otomatis)</label>
+<input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-..." style="width:100%">
+<p class="muted warn">Untuk pengujian lokal saja. Jangan masukkan API key ke website publik atau commit ke GitHub. Key tidak disimpan ke Local Storage, tetapi tetap dapat diakses dari browser selama halaman terbuka. Pembacaan AI mengirim gambar peta ke Anthropic.</p>
+</details>
+<section class="card">
+<h2>2. Atur dosis dan kapasitas ritase</h2>
+<div class="grid">
+<div><label for="dose">Target dosis (ton/ha)</label><input id="dose" type="number" min="0.01" step="0.1" value="38"></div>
+<div><label for="capacity">Kapasitas Baldan (ton/ritase)</label><input id="capacity" type="number" min="0.01" step="0.1" value="4.4"></div>
+<div><label for="netto">Luas netto pada peta (ha)</label><input id="netto" type="number" min="0.01" step="0.01" placeholder="Opsional"></div>
+</div>
+<p class="muted">Formula: <strong>target dosis per plot = luas plot (ha) × dosis (ton/ha)</strong>. Ritase desimal = target ton per plot ÷ kapasitas Baldan. Ritase bulat dibulatkan ke atas untuk setiap plot.</p>
+</section>
+<section class="card">
+<h2>3. Masukkan data luas plot</h2>
+<label for="pasteArea">Impor cepat (desimal titik dipisahkan koma/baris baru; desimal koma gunakan titik koma)</label>
+<textarea id="pasteArea" placeholder="Contoh: 0.36, 0.28, 0.62, 0.68&#10;atau: 0,36; 0,28; 0,62; 0,68"></textarea>
+<button class="btn" id="importBtn" type="button">Impor Angka</button>
+<div class="actions">
+<button class="btn" id="addBtn" type="button">+ Tambah Plot</button>
+<button class="btn blue" id="presetBtn" type="button">Muat Contoh F3 (16 plot)</button>
+<button class="btn grey" id="exportBtn" type="button">Unduh Hasil CSV</button>
+<button class="btn red" id="resetBtn" type="button">Reset</button>
+</div>
+</section>
+<section class="summary" aria-label="Ringkasan perhitungan">
+<div class="metric"><span>Jumlah plot</span><strong id="plotCount">0</strong></div>
+<div class="metric"><span>Total luas terisi</span><strong id="areaTotal">0,00 ha</strong></div>
+<div class="metric"><span>Total target dosis</span><strong id="doseTotal">0,00 ton</strong></div>
+<div class="metric"><span>Total ritase minimum per plot</span><strong id="ritaseTotal">0</strong></div>
+</section>
+<p id="checkMessage" role="status" aria-live="polite"></p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>No. Plot</th><th>Luas (ha)</th><th>Target (ton)</th><th>Ritase minimum (bulat ke atas)</th><th>Ritase (desimal)</th><th>Aksi</th></tr></thead>
+<tbody id="tableBody"></tbody>
+</table>
+</div>
+<div class="note" style="margin-top:16px"><strong>Verifikasi sebelum aplikasi:</strong> hasil pembacaan AI bisa salah mengenali nomor atau angka luas. Cocokkan dengan peta asli. Data contoh F3 berisi luas total <strong>7,79 ha</strong>, sedangkan netto yang tercantum pada contoh adalah <strong>7,38 ha</strong>; selisih ini sengaja ditampilkan sebagai peringatan karena sumber yang benar perlu diverifikasi.</div>
+<p class="muted">Perhitungan dosis tidak memerlukan API. API key hanya diperlukan untuk pembacaan peta secara otomatis.</p>
+</main>
+<script>
+(function(){
+'use strict';
+if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';}
+var MAX_SIDE=1568;
+var MODEL='claude-sonnet-5';
+var plotData=[],currentImageB64='',currentFileName='';
+var $=function(id){return document.getElementById(id);};
+function setStatus(message,color){$('status').textContent=message;$('status').style.color=color||'#1b5e20';}
+function params(){var dose=Number($('dose').value),cap=Number($('capacity').value);return {dose:dose,cap:cap,valid:$('dose').value.trim()!==''&&$('capacity').value.trim()!==''&&Number.isFinite(dose)&&dose>0&&Number.isFinite(cap)&&cap>0};}
+function calc(area){var p=params();if(!p.valid||!Number.isFinite(area)||area<0)return {ton:null,rit:null,whole:null};var ton=area*p.dose,rit=ton/p.cap;return {ton:ton,rit:rit,whole:Math.ceil(rit-1e-10)};}
+function totalArea(){return plotData.reduce(function(sum,p){return sum+(Number.isFinite(p.luas)&&p.luas>=0?p.luas:0);},0);}
+function missingCount(){return plotData.filter(function(p){return !Number.isFinite(p.luas)||p.luas<0;}).length;}
+function fmt(n,digits){return Number(n).toLocaleString('id-ID',{minimumFractionDigits:digits,maximumFractionDigits:digits});}
+function updateSummary(){
+ var p=params(),total=totalArea(),missing=missingCount(),ritase=0;
+ plotData.forEach(function(row){var r=calc(row.luas);if(r.whole!==null)ritase+=r.whole;});
+ $('plotCount').textContent=String(plotData.length);
+ $('areaTotal').textContent=fmt(total,2)+' ha'+(missing?' ('+missing+' belum diisi)':'');
+ $('doseTotal').textContent=p.valid?(missing?'— (data belum lengkap)':fmt(total*p.dose,2)+' ton'):'—';
+ $('ritaseTotal').textContent=p.valid?(missing?'—':String(ritase)):'—';
+ var msg=$('checkMessage'),netText=$('netto').value.trim(),net=netText===''?null:Number(netText);msg.className='';
+ if(!p.valid){msg.className='warn';msg.textContent='Target dosis dan kapasitas ritase harus berupa angka lebih besar dari 0.';return;}
+ if(missing){msg.className='warn';msg.textContent='Ada '+missing+' plot yang luasnya belum terbaca/diisi. Lengkapi semua luas untuk memperoleh total yang akurat.';return;}
+ if(net===null){msg.textContent='';return;}
+ if(!Number.isFinite(net)||net<=0){msg.className='warn';msg.textContent='Luas netto harus lebih besar dari 0, atau kosongkan jika tidak digunakan.';return;}
+ if(!plotData.length){msg.textContent='';return;}
+ var diff=total-net;
+ if(Math.abs(diff)<=0.02){msg.className='good';msg.textContent='Total luas plot '+fmt(total,2)+' ha sesuai dengan netto peta '+fmt(net,2)+' ha (toleransi ±0,02 ha).';}
+ else{msg.className='warn';msg.textContent='PERIKSA: total luas plot '+fmt(total,2)+' ha berbeda '+(diff>0?'+':'')+fmt(diff,2)+' ha dari netto '+fmt(net,2)+' ha. Periksa angka luas terhadap peta asli.';}
+}
+function updateRowCalculation(index){
+ var row=$('tableBody').querySelector('tr[data-row-index="'+index+'"]');if(!row)return;
+ var area=plotData[index].luas,r=calc(area),known=Number.isFinite(area)&&area>=0;
+ row.querySelector('.target-ton').textContent=known&&r.ton!==null?fmt(r.ton,2):'—';
+ row.querySelector('.whole-ritase').textContent=known&&r.whole!==null?String(r.whole):'—';
+ row.querySelector('.decimal-ritase').textContent=known&&r.rit!==null?fmt(r.rit,2):'—';
+}
+function render(){
+ var body=$('tableBody'),p=params();
+ if(!plotData.length){body.innerHTML='<tr><td colspan="6">Belum ada data plot. Upload peta, impor angka luas, atau tambah plot secara manual.</td></tr>';updateSummary();return;}
+ body.innerHTML=plotData.map(function(row,i){var known=Number.isFinite(row.luas)&&row.luas>=0,r=calc(row.luas);return '<tr data-row-index="'+i+'"><td><strong>Plot '+row.plot+'</strong></td><td><input class="area" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Luas plot '+row.plot+'" value="'+(known?String(row.luas):'')+'" data-index="'+i+'"></td><td class="target-ton">'+(known&&p.valid?fmt(r.ton,2):'—')+'</td><td class="whole-ritase">'+(known&&p.valid?String(r.whole):'—')+'</td><td class="decimal-ritase">'+(known&&p.valid?fmt(r.rit,2):'—')+'</td><td><button class="danger" type="button" data-delete="'+i+'" aria-label="Hapus plot '+row.plot+'">Hapus</button></td></tr>';}).join('');
+ updateSummary();
+}
+function addPlot(){plotData.push({plot:plotData.reduce(function(max,row){return Math.max(max,row.plot);},0)+1,luas:null});render();}
+function deletePlot(index){if(index<0||index>=plotData.length)return;plotData.splice(index,1);render();}
+function loadPreset(){var a=[0.50,0.22,0.96,0.90,0.61,0.41,0.21,0.08,0.26,0.42,0.89,0.87,0.50,0.35,0.33,0.28];plotData=a.map(function(v,i){return {plot:i+1,luas:v};});$('title').textContent='Project APEX: Kalkulator Lokasi F3';$('netto').value='7.38';setStatus('Contoh F3 dimuat. Total luas berdasarkan 16 angka adalah 7,79 ha, sedangkan netto contoh 7,38 ha. Periksa data sumber.','#b71c1c');render();}
+function resetAll(){plotData=[];currentImageB64='';currentFileName='';$('title').textContent='Project APEX: Kalkulator Dosis dari Peta Lokasi';$('netto').value='';$('uploader').value='';$('preview').removeAttribute('src');$('preview').style.display='none';$('readMapBtn').disabled=true;$('pasteArea').value='';setStatus('Data direset. Upload peta, impor angka, atau isi tabel secara manual.');render();}
+function parseAreas(raw){
+ var text=raw.trim();if(!text)return [];
+ if(text.indexOf(';')!==-1){return text.split(/[;\n\r\t|]+/).map(function(s){return s.trim();}).filter(Boolean).map(function(s){if((s.match(/,/g)||[]).length===1&&!s.includes('.'))s=s.replace(',','.');return Number(s);});}
+ var lines=text.split(/[\n\r]+/).map(function(s){return s.trim();}).filter(Boolean);
+ if(lines.length>1&&lines.every(function(s){return /^\d+,\d+$/.test(s);}))return lines.map(function(s){return Number(s.replace(',','.'));});
+ return text.split(/[, \n\r\t|]+/).map(function(s){return s.trim();}).filter(Boolean).map(Number);
+}
+function importText(){var raw=$('pasteArea').value;if(!raw.trim()){alert('Tempelkan daftar luas plot terlebih dahulu.');return;}var values=parseAreas(raw);if(!values.length||values.some(function(v){return !Number.isFinite(v)||v<=0||v>10000;})){alert('Format luas tidak valid. Gunakan 0.36, 0.28, 0.62 atau 0,36; 0,28; 0,62. Setiap luas harus lebih besar dari 0.');return;}plotData=values.map(function(v,i){return {plot:i+1,luas:v};});$('netto').value='';setStatus('Berhasil mengimpor '+plotData.length+' angka luas plot. Perhitungan telah diperbarui.');render();}
+function fitSize(w,h){var k=Math.min(1,MAX_SIDE/Math.max(w,h));return {w:Math.max(1,Math.round(w*k)),h:Math.max(1,Math.round(h*k))};}
+async function fileToCanvas(file){
+ if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
+  if(!window.pdfjsLib)throw new Error('Pustaka PDF gagal dimuat. Periksa koneksi internet lalu muat ulang halaman.');
+  var pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  if(pdf.numPages!==1)throw new Error('PDF ini memiliki '+pdf.numPages+' halaman. Untuk mencegah plot terlewat, gunakan PDF satu halaman yang berisi peta lengkap.');
+  var page=await pdf.getPage(1),base=page.getViewport({scale:1}),k=Math.min(2,MAX_SIDE/Math.max(base.width,base.height)),vp=page.getViewport({scale:k}),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(vp.width));canvas.height=Math.max(1,Math.round(vp.height));var ctx=canvas.getContext('2d');if(!ctx)throw new Error('Browser tidak dapat membuat kanvas untuk membaca PDF.');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);await page.render({canvasContext:ctx,viewport:vp}).promise;return canvas;
+ }
+ if(file.type!=='image/png'&&file.type!=='image/jpeg'&&!/\.(png|jpe?g)$/i.test(file.name))throw new Error('Format file tidak didukung. Gunakan PDF, JPG, atau PNG.');
+ if(!window.createImageBitmap)throw new Error('Browser ini tidak mendukung pemrosesan gambar. Coba gunakan Chrome atau Edge terbaru.');
+ var bmp=await createImageBitmap(file),size=fitSize(bmp.width,bmp.height),canvas=document.createElement('canvas');canvas.width=size.w;canvas.height=size.h;var ctx2=canvas.getContext('2d');if(!ctx2)throw new Error('Browser tidak dapat memproses gambar.');ctx2.fillStyle='#fff';ctx2.fillRect(0,0,size.w,size.h);ctx2.drawImage(bmp,0,0,size.w,size.h);if(bmp.close)bmp.close();return canvas;
+}
+var PROMPT='Ini adalah peta lokasi blok perkebunan. Baca semua plot. Nomor plot biasanya berada di dalam lingkaran magenta/pink; di dekatnya ada angka luas dalam hektar. Abaikan legenda dan angka dimensi jalan. Ambil nama lokasi dan luas NETTO jika terbaca. Jangan menebak angka yang tidak jelas; isi null untuk luas yang tidak terbaca. Kembalikan JSON valid saja dengan format {"lokasi":"029 A2","netto_ha":5.07,"plots":[{"plot":1,"luas":0.36},{"plot":2,"luas":0.28}]}. Setiap plot harus muncul satu kali, urut berdasarkan nomor plot.';
+async function callClaude(imageB64,note){var key=$('apiKey').value.trim();if(!key)throw new Error('API key belum diisi. Isi Pengaturan API Claude, atau gunakan impor angka dan tabel manual.');var response;try{response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:MODEL,max_tokens:4096,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:imageB64}},{type:'text',text:PROMPT+(note?'\n\n'+note:'')}]}]})});}catch(error){throw new Error('Tidak dapat menghubungi Anthropic API. Periksa koneksi internet dan izin akses browser.');}var data=await response.json().catch(function(){return {};});if(!response.ok)throw new Error((data.error&&data.error.message)||('Anthropic API error '+response.status+'. Periksa API key, saldo/kredit API, dan akses model.'));var answer=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n');var start=answer.indexOf('{'),end=answer.lastIndexOf('}');if(start<0||end<0)throw new Error('Respons AI bukan JSON. Coba gambar yang lebih jelas.');var result;try{result=JSON.parse(answer.slice(start,end+1));}catch(error){throw new Error('Respons JSON dari AI tidak valid. Coba ulangi dengan peta yang lebih jelas.');}if(!result||!Array.isArray(result.plots))throw new Error('Format hasil AI tidak memuat daftar plot.');return result;}
+function sumPlots(result){return (result.plots||[]).reduce(function(s,p){return s+(Number.isFinite(p.luas)&&p.luas>=0?p.luas:0);},0);}
+async function readMap(){if(!currentImageB64){setStatus('Upload file peta terlebih dahulu.','#b71c1c');return;}var btn=$('readMapBtn');btn.disabled=true;btn.textContent='Sedang membaca...';try{setStatus('Mengirim gambar peta ke AI...','#a65d00');var result=await callClaude(currentImageB64),sum=sumPlots(result);if(Number.isFinite(result.netto_ha)&&result.netto_ha>0&&Math.abs(sum-result.netto_ha)>0.02){setStatus('Total luas berbeda dari netto peta; AI sedang memeriksa ulang...','#a65d00');try{var retry=await callClaude(currentImageB64,'Jumlah luas pada pembacaan sebelumnya '+sum.toFixed(2)+' ha, netto peta '+result.netto_ha+' ha. Periksa kemungkinan plot terlewat atau salah baca, tetapi jangan mengubah angka jika tidak didukung gambar. Balas JSON yang sama.');var oldDiff=Math.abs(sum-result.netto_ha),retryNet=Number.isFinite(retry.netto_ha)&&retry.netto_ha>0?retry.netto_ha:result.netto_ha;if(Math.abs(sumPlots(retry)-retryNet)<oldDiff)result=retry;}catch(retryError){console.warn('Pemeriksaan ulang gagal:',retryError);}}
+ var plots=result.plots.filter(function(p){return Number.isInteger(p.plot)&&p.plot>0&&p.plot<=10000;});if(!plots.length)throw new Error('Tidak ada nomor plot valid yang terbaca.');var seen=new Set();plotData=plots.filter(function(p){if(seen.has(p.plot))return false;seen.add(p.plot);return true;}).map(function(p){return {plot:p.plot,luas:Number.isFinite(p.luas)&&p.luas>=0&&p.luas<=10000?p.luas:null};}).sort(function(a,b){return a.plot-b.plot;});$('title').textContent='Project APEX: Kalkulator Lokasi '+(typeof result.lokasi==='string'&&result.lokasi.trim()?result.lokasi.trim():'hasil pembacaan peta');$('netto').value=Number.isFinite(result.netto_ha)&&result.netto_ha>0?String(result.netto_ha):'';var missing=missingCount();setStatus('AI membaca '+plotData.length+' plot dari '+currentFileName+'. '+(missing?missing+' luas belum terbaca; isi manual.':'Periksa kembali semua angka terhadap peta asli sebelum digunakan.'),missing?'#a65d00':'#1b5e20');render();}catch(error){console.error(error);setStatus('Peta sudah dimuat tetapi pembacaan otomatis gagal: '+error.message+' Anda tetap dapat mengisi luas secara manual atau menggunakan impor angka.','#b71c1c');}finally{btn.disabled=!currentImageB64;btn.textContent='Baca Peta dengan AI';}}
+$('uploader').addEventListener('change',async function(event){var file=event.target.files&&event.target.files[0];if(!file)return;currentImageB64='';currentFileName=file.name;$('readMapBtn').disabled=true;try{setStatus('Menyiapkan '+file.name+'...','#a65d00');var canvas=await fileToCanvas(file),url=canvas.toDataURL('image/jpeg',0.92);currentImageB64=url.split(',')[1];$('preview').src=url;$('preview').style.display='inline-block';$('readMapBtn').disabled=false;if($('apiKey').value.trim())await readMap();else setStatus('Peta berhasil dimuat dan pratinjau tersedia. Masukkan API key lalu klik “Baca Peta dengan AI”, atau lanjutkan dengan impor angka/tabel manual.');}catch(error){console.error(error);currentImageB64='';$('readMapBtn').disabled=true;setStatus('Gagal memuat peta: '+error.message,'#b71c1c');}});
+$('tableBody').addEventListener('input',function(event){var target=event.target;if(!target.classList.contains('area'))return;var index=Number(target.dataset.index);if(!Number.isInteger(index)||index<0||index>=plotData.length)return;var value=target.value.trim()===''?null:Number(target.value);plotData[index].luas=value!==null&&Number.isFinite(value)&&value>=0&&value<=10000?value:null;updateRowCalculation(index);updateSummary();});
+$('tableBody').addEventListener('click',function(event){var button=event.target.closest('[data-delete]');if(button)deletePlot(Number(button.dataset.delete));});
+$('importBtn').addEventListener('click',importText);$('addBtn').addEventListener('click',addPlot);$('presetBtn').addEventListener('click',loadPreset);$('resetBtn').addEventListener('click',resetAll);$('readMapBtn').addEventListener('click',readMap);$('dose').addEventListener('input',render);$('capacity').addEventListener('input',render);$('netto').addEventListener('input',updateSummary);
+$('exportBtn').addEventListener('click',function(){if(!plotData.length){alert('Belum ada data untuk diunduh.');return;}var p=params();if(!p.valid){alert('Isi target dosis dan kapasitas ritase dengan angka lebih besar dari 0.');return;}var rows=[['No Plot','Luas (ha)','Target Dosis (ton)','Ritase Minimum (bulat ke atas)','Ritase (desimal)']];plotData.forEach(function(row){var r=calc(row.luas),known=Number.isFinite(row.luas)&&row.luas>=0;rows.push([row.plot,known?row.luas:'',known?r.ton.toFixed(2):'',known?r.whole:'',known?r.rit.toFixed(4):'']);});var csv='\uFEFF'+rows.map(function(row){return row.map(function(value){var text=String(value);return '"'+text.replace(/"/g,'""')+'"';}).join(';');}).join('\r\n');var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='APEX_hasil_kalkulasi.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);});
+window.addEventListener('load',loadPreset);
+})();
+</script>
+</body>
+</html>
